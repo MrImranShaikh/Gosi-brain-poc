@@ -6,6 +6,7 @@ public enum GenerationTarget {
     REPOSITORY,
     SERVICE,
     CONTROLLER,
+    API,
     CODE; // full pipeline
 
     public static GenerationTarget from(String value) {
@@ -20,6 +21,7 @@ public enum GenerationTarget {
             case "service", "services" -> SERVICE;
             case "controller", "controllers" -> CONTROLLER;
             case "code" -> CODE;
+            case "api" -> API;
             default -> throw new IllegalArgumentException(
                     "Unknown target: " + value +
                             " (erd | entity | repository | service | controller | code)"

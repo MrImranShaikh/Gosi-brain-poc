@@ -30,20 +30,22 @@ public class App {
             System.out.println("""
                 Usage:
                   agentic <brd-file> [-t target]
-
+            
                 Targets:
                   erd           Architecture / ERD-level view
                   entity        JPA entities
                   repository    Spring Data repositories
                   service       Service interfaces + implementations
                   controller    REST controllers
+                  api           OpenAPI/Swagger documentation
                   code          Full Spring Boot project (default)
-
+            
                 Examples:
                   agentic brd.txt
-                  agentic brd.txt -t entity
+                  agentic brd.txt -t api
                   agentic brd.txt -t service --dry-run
                 """);
+
             return;
         }
 
@@ -212,14 +214,17 @@ public class App {
                         repository.getPackageName(),
                         entity.getName()));
 
-        PlannedClass controller = modulePlan.getControllers().get(0);
-        writePlannedClass(writer, controller,
-                codeGen.generateController(
-                        controller.getName(),
-                        controller.getPackageName(),
-                        serviceInterface.getName(),
-                        serviceInterface.getPackageName(),
-                        entity.getName()));
+        for (PlannedClass controller : modulePlan.getControllers()) {
+            writePlannedClass(writer, controller,
+                    codeGen.generateController(
+                            controller.getName(),
+                            controller.getPackageName(),
+                            serviceInterface.getName(),
+                            serviceInterface.getPackageName(),
+                            entity.getName()
+                    )
+            );
+        }
 
         // ---------- pom.xml ----------
         boolean web = architecturePlan.hasDependency("spring-boot-starter-web");
@@ -283,6 +288,12 @@ public class App {
         }
         if (cleaned.endsWith("```")) {
             cleaned = cleaned.substring(0, cleaned.lastIndexOf("```")).trim();
+        }
+        if (!code.contains("io.swagger.v3.oas.annotations")) {
+            cleaned = """
+                import io.swagger.v3.oas.annotations.Operation;
+                import io.swagger.v3.oas.annotations.tags.Tag;
+                """ + cleaned;
         }
         return cleaned;
     }

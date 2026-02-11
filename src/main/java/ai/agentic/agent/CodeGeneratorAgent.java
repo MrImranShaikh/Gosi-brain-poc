@@ -125,25 +125,30 @@ Package: %s
     ) {
 
         String prompt = """
-Generate a REST controller.
-
-STRICT RULES:
-- Annotate with @RestController
-- Base path: /api/%s
-- Inject %s via constructor
-- Provide CRUD endpoints
-- Use ResponseEntity
-- No explanations
-- Return ONLY Java code
-
-Controller name: %s
-Package: %s
-""".formatted(
-                entityName.toLowerCase(),
-                serviceName,
-                controllerName,
-                packageName
-        );
+            You are generating a production-ready Spring Boot REST controller.
+            
+            Requirements:
+            - Use @RestController
+            - Use @RequestMapping("/api/%s")
+            - Add Swagger OpenAPI annotations:
+                - @Tag at class level
+                - @Operation for each endpoint
+            - Import:
+                io.swagger.v3.oas.annotations.Operation
+                io.swagger.v3.oas.annotations.tags.Tag
+            
+            Generate:
+            - GET all
+            - GET by id
+            - POST create
+            - PUT update
+            - DELETE delete
+            
+            Return ONLY valid Java code.
+            No explanations.
+            No markdown.
+            No backticks.
+            """.formatted(entityName.toLowerCase());
 
         return llm.generate(prompt);
     }

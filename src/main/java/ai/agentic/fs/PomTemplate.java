@@ -41,6 +41,13 @@ public class PomTemplate {
                     <artifactId>spring-boot-starter-web</artifactId>
                 </dependency>
             """);
+            deps.append("""
+                <dependency>
+                    <groupId>org.springdoc</groupId>
+                    <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                    <version>2.5.0</version>
+                </dependency>
+            """);
         }
 
         if (jpa) {
