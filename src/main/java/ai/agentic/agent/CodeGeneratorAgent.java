@@ -137,17 +137,22 @@ Package: %s
                 io.swagger.v3.oas.annotations.Operation
                 io.swagger.v3.oas.annotations.tags.Tag
             
-            Generate:
+            Generate Methods like:
             - GET all
             - GET by id
             - POST create
             - PUT update
             - DELETE delete
+            - Any other Method that you think are neccessary for a production-ready controller
             
-            Return ONLY valid Java code.
-            No explanations.
-            No markdown.
-            No backticks.
+            IMPORTANT:
+            - Include ALL necessary imports.
+            - Ensure no missing imports.
+            - Return a complete compilable Java class.
+            - Do NOT include markdown.
+            - Do NOT include backticks.
+            - Do NOT explain anything.
+            - Output ONLY Java code.
             """.formatted(entityName.toLowerCase());
 
         return llm.generate(prompt);
@@ -157,17 +162,17 @@ Package: %s
             String packageName
     ) {
         String prompt = """
-Generate a Spring Boot main application class.
-
-STRICT RULES:
-- Use @SpringBootApplication
-- Include main method
-- No explanations
-- Return ONLY Java code
-
-Class name: %s
-Package: %s
-""".formatted(className, packageName);
+            Generate a Spring Boot main application class.
+            
+            STRICT RULES:
+            - Use @SpringBootApplication
+            - Include main method
+            - No explanations
+            - Return ONLY Java code
+            
+            Class name: %s
+            Package: %s
+            """.formatted(className, packageName);
 
         return llm.generate(prompt);
     }

@@ -305,7 +305,9 @@ public class App {
                 cleaned = cleaned.substring(importIndex);
             }
         }
-
+        if (cleaned.contains("List<") && !cleaned.contains("import java.util.List")) {
+            cleaned = "import java.util.List;\n" + cleaned;
+        }
         return cleaned.trim();
     }
 
