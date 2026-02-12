@@ -1,44 +1,45 @@
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-
-Here is the service implementation:
-
-```java
 package com.example.employee.services.impl;
 
-import com.example.employee.domain.Employee;
-import com.example.employee.repository.EmployeeRepository;
+import com.example.employee.entities.EmployeeEntity;
+import com.example.employee.repositories.EmployeeRepository;
+import com.example.employee.services.EmployeeService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class EmployeeServiceImpl implements EmployeeService {
 
     private final EmployeeRepository employeeRepository;
 
+    @Autowired
     public EmployeeServiceImpl(EmployeeRepository employeeRepository) {
         this.employeeRepository = employeeRepository;
     }
 
     @Override
-    public List<Employee> findAll() {
+    public List<EmployeeEntity> getAllEmployees() {
         return employeeRepository.findAll();
     }
 
     @Override
-    public Optional<Employee> findById(Long id) {
-        return employeeRepository.findById(id);
+    public EmployeeEntity getEmployeeById(Long id) {
+        return employeeRepository.findById(id).orElse(null);
     }
 
     @Override
-    public Employee save(Employee employee) {
+    public EmployeeEntity createEmployee(EmployeeEntity employee) {
         return employeeRepository.save(employee);
     }
 
     @Override
-    public void deleteById(Long id) {
+    public EmployeeEntity updateEmployee(EmployeeEntity employee) {
+        return employeeRepository.save(employee);
+    }
+
+    @Override
+    public void deleteEmployee(Long id) {
         employeeRepository.deleteById(id);
     }
 }

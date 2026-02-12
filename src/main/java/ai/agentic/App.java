@@ -90,20 +90,15 @@ public class App {
 
         LLMClient llm = new OllamaClient("llama3");
 
-        // ---------- 1️ Requirement analysis ----------
         RequirementAnalyzerAgent reqAgent = new RequirementAnalyzerAgent(llm);
         String requirementJson = reqAgent.analyze(brd);
 
-        // ---------- 2️ Architecture planning ----------
         ArchitecturePlannerAgent archAgent = new ArchitecturePlannerAgent(llm);
         String architectureJson = archAgent.planArchitecture(requirementJson);
-
-
 
         ArchitecturePlan architecturePlan =
                 mapper.readValue(architectureJson, ArchitecturePlan.class);
 
-        // ---------- 3️ Module planning ----------
         ModulePlannerAgent moduleAgent = new ModulePlannerAgent(llm);
         String rawModulePlan = moduleAgent.planModule(requirementJson, architectureJson);
         String modulePlanJson = extractJsonObject(rawModulePlan);
@@ -167,7 +162,6 @@ public class App {
             return;
         }
 
-        // ---------- 4️ CODE GENERATION ----------
         JavaFileWriter writer =
                 new JavaFileWriter(outputDir.toString(), dryRun);
 
@@ -181,7 +175,7 @@ public class App {
           {"name": "email", "type": "string"}
         ]
         """;
-
+        validatePackage(entity, modulePlan);
         writePlannedClass(writer, entity,
                 codeGen.generateEntity(
                         entity.getName(),
@@ -226,7 +220,6 @@ public class App {
             );
         }
 
-        // ---------- pom.xml ----------
         boolean web = architecturePlan.hasDependency("spring-boot-starter-web");
         boolean jpa = architecturePlan.hasDependency("spring-boot-starter-data-jpa");
         boolean validation =
@@ -247,17 +240,18 @@ public class App {
         Files.writeString(generated.resolve("pom.xml"), pomXml);
         MavenWrapperGenerator.generate(generated);
 
-        // ---------- Spring Boot main ----------
+
         String appClassName = modulePlan.getModuleName() + "Application";
+        var mainCode = codeGen.generateSpringBootMain(
+                appClassName,
+                modulePlan.getBasePackage());
+
         writer.writeJavaFile(
                 modulePlan.getBasePackage(),
                 appClassName,
-                codeGen.generateSpringBootMain(
-                        appClassName,
-                        modulePlan.getBasePackage())
+                sanitizeJavaCode(mainCode)
         );
 
-        // ---------- 5️⃣ Validation ----------
         ValidatorAgent validator = new ValidatorAgent();
         ValidationResult result = validator.validate(generated);
 
@@ -267,7 +261,17 @@ public class App {
         }
     }
 
-    // ================= HELPERS =================
+    private static void validatePackage(PlannedClass plannedClass, ModulePlan modulePlan) {
+        String base = modulePlan.getBasePackage();
+        String pkg = plannedClass.getPackageName();
+
+        if (pkg == null || !pkg.startsWith(base)) {
+            throw new IllegalStateException(
+                    "Invalid package generated.\nExpected base: " + base +
+                            "\nActual: " + pkg
+            );
+        }
+    }
 
     private static void writePlannedClass(
             JavaFileWriter writer,
@@ -281,30 +285,29 @@ public class App {
         );
     }
 
-    // File: `src/main/java/ai/agentic/App.java` (replace the sanitizeJavaCode method)
     private static String sanitizeJavaCode(String code) {
+
         if (code == null) return "";
+
         String cleaned = code.trim();
 
-        // Remove opening fenced code block like ``` or ```java (including optional language and the newline)
-        cleaned = cleaned.replaceFirst("(?s)^\\s*```(?:\\w+)?\\s*\\n?", "");
-        // Remove trailing closing fence ```
-        cleaned = cleaned.replaceFirst("(?s)\\n?\\s*```\\s*$", "");
+        cleaned = cleaned.replaceAll("```java", "");
+        cleaned = cleaned.replaceAll("```", "");
 
-        // Remove any leftover leading/trailing backticks
-        cleaned = cleaned.replaceAll("^\\s*`+\\s*", "");
-        cleaned = cleaned.replaceAll("\\s*`+\\s*$", "");
-
-        // Ensure imports inserted only when missing (check cleaned, not original code)
-        if (!cleaned.contains("io.swagger.v3.oas.annotations")) {
-            cleaned = "import io.swagger.v3.oas.annotations.Operation;\n"
-                    + "import io.swagger.v3.oas.annotations.tags.Tag;\n\n"
-                    + cleaned;
+        int packageIndex = cleaned.indexOf("package ");
+        if (packageIndex > 0) {
+            cleaned = cleaned.substring(packageIndex);
         }
 
-        return cleaned;
-    }
+        if (!cleaned.startsWith("package ")) {
+            int importIndex = cleaned.indexOf("import ");
+            if (importIndex > 0) {
+                cleaned = cleaned.substring(importIndex);
+            }
+        }
 
+        return cleaned.trim();
+    }
 
     private static String extractJsonObject(String text) {
         int start = text.indexOf('{');

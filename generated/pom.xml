@@ -15,7 +15,7 @@
     </parent>
 
     <groupId>com.example.employee</groupId>
-    <artifactId>employeemanagement</artifactId>
+    <artifactId>employeemodule</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
 
