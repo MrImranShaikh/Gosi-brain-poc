@@ -281,22 +281,30 @@ public class App {
         );
     }
 
+    // File: `src/main/java/ai/agentic/App.java` (replace the sanitizeJavaCode method)
     private static String sanitizeJavaCode(String code) {
+        if (code == null) return "";
         String cleaned = code.trim();
-        if (cleaned.startsWith("```")) {
-            cleaned = cleaned.substring(cleaned.indexOf('\n') + 1);
+
+        // Remove opening fenced code block like ``` or ```java (including optional language and the newline)
+        cleaned = cleaned.replaceFirst("(?s)^\\s*```(?:\\w+)?\\s*\\n?", "");
+        // Remove trailing closing fence ```
+        cleaned = cleaned.replaceFirst("(?s)\\n?\\s*```\\s*$", "");
+
+        // Remove any leftover leading/trailing backticks
+        cleaned = cleaned.replaceAll("^\\s*`+\\s*", "");
+        cleaned = cleaned.replaceAll("\\s*`+\\s*$", "");
+
+        // Ensure imports inserted only when missing (check cleaned, not original code)
+        if (!cleaned.contains("io.swagger.v3.oas.annotations")) {
+            cleaned = "import io.swagger.v3.oas.annotations.Operation;\n"
+                    + "import io.swagger.v3.oas.annotations.tags.Tag;\n\n"
+                    + cleaned;
         }
-        if (cleaned.endsWith("```")) {
-            cleaned = cleaned.substring(0, cleaned.lastIndexOf("```")).trim();
-        }
-        if (!code.contains("io.swagger.v3.oas.annotations")) {
-            cleaned = """
-                import io.swagger.v3.oas.annotations.Operation;
-                import io.swagger.v3.oas.annotations.tags.Tag;
-                """ + cleaned;
-        }
+
         return cleaned;
     }
+
 
     private static String extractJsonObject(String text) {
         int start = text.indexOf('{');
