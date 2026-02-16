@@ -68,9 +68,9 @@ public class App {
         boolean plantUml = false;
 
         for (int i = 1; i < args.length; i++) {
-            if ("--plantuml".equals(args[i])) {
-                plantUml = true;
-            }
+
+            plantUml =  ("--plantuml".equals(args[i]));
+
             if ("--dry-run".equals(args[i])) {
                 dryRun = true;
             }
