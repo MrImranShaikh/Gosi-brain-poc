@@ -60,103 +60,153 @@ Entity package: %s
 
         return llm.generate(prompt);
     }
-
     public String generateServiceInterface(
             String serviceName,
-            String packageName,
-            String entityName
-    ) {
+            String servicePackage,
+            String entityName,
+            String entityPackage) {
 
         String prompt = """
-Generate a service interface.
+        Generate a Java Spring Boot service interface.
 
-STRICT RULES:
-- Pure interface
-- Define basic CRUD methods
-- Use %s as entity
-- No implementation
-- No explanations
-- Return ONLY Java code
+        Rules:
+        - Do NOT add explanation text.
+        - Do NOT add markdown.
+        - Do NOT generate package statement.
+        - Do NOT invent imports.
+        - Use EXACT entity import provided below.
 
-Service name: %s
-Package: %s
-""".formatted(entityName, serviceName, packageName);
+        Required Import:
+        import %s.%s;
+
+        Generate CRUD methods:
+        - List<%s> findAll();
+        - %s findById(Long id);
+        - %s create(%s entity);
+        - %s update(Long id, %s entity);
+        - void delete(Long id);
+
+        Only output valid Java interface code.
+        """.formatted(
+                entityPackage,
+                entityName,
+                entityName,
+                entityName,
+                entityName,
+                entityName,
+                entityName,
+                entityName
+        );
 
         return llm.generate(prompt);
     }
+
     public String generateServiceImplementation(
             String implName,
-            String packageName,
+            String implPackage,
             String interfaceName,
             String interfacePackage,
+            String entityName,
+            String entityPackage,
             String repositoryName,
-            String repositoryPackage,
-            String entityName
-    ) {
+            String repositoryPackage) {
 
         String prompt = """
-Generate a service implementation.
+        Generate a Java Spring Boot service implementation.
 
-STRICT RULES:
-- Annotate with @Service
-- Implement %s
-- Inject %s using constructor injection
-- Implement CRUD methods
-- No explanations
-- Return ONLY Java code
+        Rules:
+        - Do NOT add explanation text.
+        - Do NOT add markdown.
+        - Do NOT generate package statement.
+        - Use EXACT imports provided.
+        - Implement interface EXACTLY.
+        - Add @Service annotation.
 
-Class name: %s
-Package: %s
-""".formatted(
-                interfaceName,
+        Required Imports:
+        import %s.%s;
+        import %s.%s;
+        import %s.%s;
+
+        Implement interface: %s
+
+        Generate full CRUD implementation.
+        """.formatted(
+                entityPackage,
+                entityName,
+                repositoryPackage,
                 repositoryName,
-                implName,
-                packageName
+                interfacePackage,
+                interfaceName,
+                interfaceName
         );
 
         return llm.generate(prompt);
     }
     public String generateController(
             String controllerName,
-            String packageName,
+            String controllerPackage,
             String serviceName,
             String servicePackage,
-            String entityName
-    ) {
+            String entityName,
+            String entityPackage,
+            String contract) {
 
         String prompt = """
-            You are generating a production-ready Spring Boot REST controller.
+            You are generating pure Java source code.
             
-            Requirements:
-            - Use @RestController
-            - Use @RequestMapping("/api/%s")
-            - Add Swagger OpenAPI annotations:
-                - @Tag at class level
-                - @Operation for each endpoint
-            - Import:
-                io.swagger.v3.oas.annotations.Operation
-                io.swagger.v3.oas.annotations.tags.Tag
-            
-            Generate Methods like:
-            - GET all
-            - GET by id
-            - POST create
-            - PUT update
-            - DELETE delete
-            - Any other Method that you think are neccessary for a production-ready controller
-            
-            IMPORTANT:
-            - Include ALL necessary imports.
-            - Ensure no missing imports.
-            - Return a complete compilable Java class.
+            STRICT RULES:
+            - Output ONLY valid Java code.
+            - Do NOT include explanations.
             - Do NOT include markdown.
-            - Do NOT include backticks.
-            - Do NOT explain anything.
-            - Output ONLY Java code.
-            """.formatted(entityName.toLowerCase());
+            - Do NOT include package statement.
+            - The first line MUST start with an import or annotation.
+            - You MUST call the service using EXACTLY the following method signatures.
+            - Do NOT invent method names.
+            - Do NOT rename methods.
+            - Do NOT add extra methods.
+            
+            Service Contract:
+            %s
+            
+            Class Details:
+            Controller Name: %s
+            Service: %s
+            Service Package: %s
+            Entity: %s
+            Entity Package: %s
+            
+            Required Imports:
+            import %s.%s;
+            import %s.%s;
+            import org.springframework.web.bind.annotation.*;
+            import org.springframework.http.ResponseEntity;
+            import org.springframework.http.HttpStatus;
+            import java.util.List;
+            import io.swagger.v3.oas.annotations.Operation;
+            
+            Generate a Spring Boot REST controller using:
+            - @RestController
+            - @RequestMapping("/api/v1/%s")
+            - Constructor injection
+            - CRUD endpoints mapped directly to the service contract above
+            """.formatted(
+                            contract,
+                            controllerName,
+                            serviceName,
+                            servicePackage,
+                            entityName,
+                            entityPackage,
+                            entityPackage,
+                            entityName,
+                            servicePackage,
+                            serviceName,
+                            entityName.toLowerCase()
+                    );
 
-        return llm.generate(prompt);
-    }
+                    return llm.generate(prompt);
+                }
+
+
     public String generateSpringBootMain(
             String className,
             String packageName
@@ -169,10 +219,67 @@ Package: %s
             - Include main method
             - No explanations
             - Return ONLY Java code
-            
+            - Do not change the casing for the class name or package name
             Class name: %s
             Package: %s
             """.formatted(className, packageName);
+
+        return llm.generate(prompt);
+    }
+    public String generateServiceImplementationFromContract(
+            String implName,
+            String implPackage,
+            String interfaceName,
+            String interfacePackage,
+            String entityName,
+            String entityPackage,
+            String repositoryName,
+            String repositoryPackage,
+            String contract
+    ) {
+
+        String prompt = """
+You are generating source code.
+
+Return ONLY valid Java code.
+Do NOT include explanations.
+Do NOT include comments outside the class.
+Do NOT include markdown.
+Do NOT include any extra text.
+
+Generate a Spring Boot service implementation.
+
+Class name: %s
+Package: %s
+Implements: %s
+Interface package: %s
+Entity: %s
+Entity package: %s
+Repository: %s
+Repository package: %s
+
+You MUST implement ALL of the following methods exactly:
+
+%s
+
+Rules:
+- Use @Service
+- Inject repository via constructor
+- Do not rename methods
+- Do not change parameters
+- No additional methods
+- No explanations
+""".formatted(
+                implName,
+                implPackage,
+                interfaceName,
+                interfacePackage,
+                entityName,
+                entityPackage,
+                repositoryName,
+                repositoryPackage,
+                contract
+        );
 
         return llm.generate(prompt);
     }
