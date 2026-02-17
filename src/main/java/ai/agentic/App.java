@@ -2,10 +2,7 @@ package ai.agentic;
 
 import ai.agentic.agent.*;
 import ai.agentic.cli.GenerationTarget;
-import ai.agentic.fs.JavaFileWriter;
-import ai.agentic.fs.MavenWrapperGenerator;
-import ai.agentic.fs.PlantUmlFileWriter;
-import ai.agentic.fs.PomTemplate;
+import ai.agentic.fs.*;
 import ai.agentic.llm.LLMClient;
 import ai.agentic.llm.OllamaClient;
 import ai.agentic.model.ArchitecturePlan;
@@ -19,13 +16,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static ai.agentic.agent.LanguageTranslatorAgent.translatePreservingFormat;
+import static org.apache.commons.io.FilenameUtils.removeExtension;
+
 public class App {
 
     public static void main(String[] args) {
 
         try {
+            String translationLanguage = null;
 
-            if (args.length == 0) {
+            if (args.length == 0 ||
+                    "-h".equalsIgnoreCase(args[0]) ||
+                    "--help".equalsIgnoreCase(args[0]) ||
+                    "help".equalsIgnoreCase(args[0])) {
+
                 printUsage();
                 return;
             }
@@ -45,7 +50,8 @@ public class App {
             String artifactRoot = "com.example";
             String projectVersion = "0.0.1-SNAPSHOT";
             String springBootVersion = "3.2.2";
-            String database = "none";
+            DatabaseType databaseType = DatabaseType.NONE;
+
             boolean swaggerEnabled = true;
 
             // ---------- CLI ----------
@@ -77,7 +83,7 @@ public class App {
                 }
 
                 if ("--db".equals(args[i]) && i + 1 < args.length) {
-                    database = args[i + 1].toLowerCase().trim();
+                    databaseType = DatabaseType.from(args[i + 1]);
                     i++;
                     continue;
                 }
@@ -95,6 +101,12 @@ public class App {
                     continue;
                 }
 
+                if ("--translate".equals(args[i]) && i + 1 < args.length) {
+                    translationLanguage = args[i + 1];
+                    i++;
+                    continue;
+                }
+
                 if ("-t".equals(args[i]) && i + 1 < args.length) {
                     target = GenerationTarget.from(args[i + 1]);
                     i++;
@@ -106,11 +118,27 @@ public class App {
             if (!artifactRoot.matches("^[a-zA-Z0-9_.]+$")) {
                 throw new IllegalArgumentException("Invalid groupId: " + artifactRoot);
             }
+            LLMClient llm = new OllamaClient("llama3");
+
+            if (translationLanguage != null) {
+                String content = readBrdFile(brdPath);
+
+                String translated = translatePreservingFormat(llm, content, translationLanguage);
+
+                Path output = brdPath.getParent()
+                        .resolve(removeExtension(brdPath.getFileName().toString())
+                                + "_" + translationLanguage + ".txt");
+
+                Files.writeString(output, translated);
+
+                System.out.println("Translation complete: " + output);
+                return;
+            }
 
             ObjectMapper mapper = new ObjectMapper();
-            String brd = Files.readString(brdPath).replace("\r\n", "\n");
+            String brd = readBrdFile(brdPath);
 
-            LLMClient llm = new OllamaClient("llama3");
+
 
             RequirementAnalyzerAgent reqAgent = new RequirementAnalyzerAgent(llm);
             String requirementJson = reqAgent.analyze(brd);
@@ -202,8 +230,6 @@ public class App {
                 write(writer, impl, implCode);
             }
 
-
-
             for (PlannedClass controller : modulePlan.getControllers()) {
                 write(writer, controller,
                         codeGen.generateController(
@@ -216,6 +242,24 @@ public class App {
                                 contract
                                 ));
             }
+            boolean jpaEnabled =
+                    architecturePlan.hasDependency("spring-boot-starter-data-jpa");
+
+            if (databaseType != DatabaseType.NONE && !jpaEnabled) {
+                System.out.println("Database selected but JPA not enabled. Enabling JPA.");
+                jpaEnabled = true;
+            }
+
+            if (jpaEnabled && databaseType == DatabaseType.NONE) {
+                System.out.println("JPA detected but no database selected. Defaulting to H2.");
+                databaseType = DatabaseType.H2;
+            }
+
+            if (jpaEnabled && databaseType == DatabaseType.NONE) {
+                throw new IllegalStateException(
+                        "Invalid configuration: JPA requires a database."
+                );
+            }
 
             String pomXml = PomTemplate.render(
                     artifactRoot,
@@ -224,11 +268,12 @@ public class App {
                     architecturePlan.getProject().getJavaVersion(),
                     springBootVersion,
                     architecturePlan.hasDependency("spring-boot-starter-web"),
-                    true,
+                    jpaEnabled,
                     architecturePlan.hasDependency("spring-boot-starter-validation"),
-                    database,
+                    databaseType,
                     swaggerEnabled
             );
+
 
             Files.writeString(outputDir.resolve("pom.xml"), pomXml);
 
@@ -237,7 +282,6 @@ public class App {
                     Character.toUpperCase(cleanModuleName.charAt(0))
                             + cleanModuleName.substring(1)
                             + "Application";
-
             String mainClassCode =
                     codeGen.generateSpringBootMain(
                             appClassName,
@@ -260,7 +304,6 @@ public class App {
                 System.out.println("BUILD FAILED");
                 System.out.println(result.getOutput());
             }
-
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -329,18 +372,32 @@ public class App {
 
     private static void printUsage() {
         System.out.println("""
-Usage:
-  agentic <brd-file> [options]
-
-Options:
-  -a <groupId>
-  -v <version>
-  --boot <bootVersion>
-  --db mysql|postgres|h2|none
-  --swagger off
-  -o <outputDir>
-""");
+            Agentic Code Generator
+            
+            Usage:
+              agentic <brd-file> [options]
+            
+            Required:
+              <brd-file>                 Path to BRD input file
+            
+            Options:
+              -a <groupId>               Set groupId (default: com.example)
+              -v <version>               Set project version (default: 0.0.1-SNAPSHOT)
+              --boot <version>           Spring Boot version (default: 3.2.2)
+              --db <type>                Database: mysql | postgres | h2 | none
+              --swagger off              Disable Swagger
+              -o, --out <dir>            Output directory
+              -t <target>                Target type (code | erd)
+              --dry-run                  Generate without writing files
+              -h, --help                 Show this help message
+            
+            Examples:
+              agentic brd.txt
+              agentic brd.txt --db h2
+              agentic brd.txt -a com.gosi --db mysql
+            """);
     }
+
 
     private static void generateERD(
             LLMClient llm,
@@ -381,6 +438,53 @@ Options:
             }
         }
         return min == Integer.MAX_VALUE ? -1 : min;
+    }
+    private static String readBrdFile(Path path) throws Exception {
+
+        String fileName = path.getFileName().toString().toLowerCase();
+
+        if (fileName.endsWith(".txt")) {
+            return Files.readString(path).replace("\r\n", "\n");
+        }
+
+        if (fileName.endsWith(".pdf")) {
+            try (org.apache.pdfbox.pdmodel.PDDocument document =
+                         org.apache.pdfbox.pdmodel.PDDocument.load(path.toFile())) {
+
+                org.apache.pdfbox.text.PDFTextStripper stripper =
+                        new org.apache.pdfbox.text.PDFTextStripper();
+
+                return stripper.getText(document);
+            }
+        }
+
+        if (fileName.endsWith(".docx")) {
+            try (java.io.InputStream is = Files.newInputStream(path);
+                 org.apache.poi.xwpf.usermodel.XWPFDocument doc =
+                         new org.apache.poi.xwpf.usermodel.XWPFDocument(is)) {
+
+                org.apache.poi.xwpf.extractor.XWPFWordExtractor extractor =
+                        new org.apache.poi.xwpf.extractor.XWPFWordExtractor(doc);
+
+                return extractor.getText();
+            }
+        }
+
+        if (fileName.endsWith(".doc")) {
+            try (java.io.InputStream is = Files.newInputStream(path);
+                 org.apache.poi.hwpf.HWPFDocument doc =
+                         new org.apache.poi.hwpf.HWPFDocument(is)) {
+
+                org.apache.poi.hwpf.extractor.WordExtractor extractor =
+                        new org.apache.poi.hwpf.extractor.WordExtractor(doc);
+
+                return extractor.getText();
+            }
+        }
+
+        throw new IllegalArgumentException(
+                "Unsupported BRD format. Supported: .txt, .pdf, .doc, .docx"
+        );
     }
 
 }
